@@ -19,6 +19,8 @@ import android.print.PrintManager
 import android.content.Context
 import android.view.Gravity
 import android.widget.*
+import android.view.View
+import android.widget.AdapterView
 import java.io.FileOutputStream
 import android.graphics.pdf.PdfDocument
 import kotlin.math.min
@@ -34,7 +36,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,24,24,24) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,64,24,64) }
         val title = TextView(this).apply { text = "ORHAN PRINT STUDIO"; textSize = 24f; gravity = Gravity.CENTER; setPadding(0,20,0,20) }
         root.addView(title)
         preview = ImageView(this).apply { setBackgroundColor(0xffeeeeee.toInt()); scaleType = ImageView.ScaleType.FIT_CENTER }
@@ -47,6 +49,13 @@ class MainActivity : Activity() {
         root.addView(select)
         root.addView(Button(this).apply { text = "ÖNİZLEMEYİ GÜNCELLE"; setOnClickListener { refreshPreview() } })
         root.addView(Button(this).apply { text = "YAZDIR / PDF KAYDET"; setOnClickListener { printPhoto() } })
+        val refreshListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { refreshPreview() }
+        }
+        paper.onItemSelectedListener = refreshListener
+        fitting.onItemSelectedListener = refreshListener
+        mode.onItemSelectedListener = refreshListener
         setContentView(root)
     }
 
@@ -76,10 +85,12 @@ class MainActivity : Activity() {
 
     private fun refreshPreview() {
         if (photo == null) return
-        val w = 900; val h = if (paper.selectedItemPosition == 1) 1350 else if (paper.selectedItemPosition == 2) 1273 else 1273
+        val w = 540; val h = if (paper.selectedItemPosition == 1) 810 else 764
         val bitmap = Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap); canvas.drawColor(android.graphics.Color.WHITE); drawPhoto(canvas,w.toFloat(),h.toFloat())
+        preview.setImageDrawable(null)
         preview.setImageBitmap(bitmap)
+        preview.invalidate()
     }
 
     private fun printPhoto() {
