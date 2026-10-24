@@ -40,7 +40,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,24,24,24) }
-        val scroll = ScrollView(this).apply { fillViewport = true }
+        val scroll = ScrollView(this).apply { isFillViewport = true }
         val title = TextView(this).apply { text = "ORHAN PRINT STUDIO"; textSize = 24f; gravity = Gravity.CENTER; setPadding(0,20,0,20) }
         root.addView(title)
         preview = ImageView(this).apply { setBackgroundColor(0xffeeeeee.toInt()); scaleType = ImageView.ScaleType.FIT_CENTER }
