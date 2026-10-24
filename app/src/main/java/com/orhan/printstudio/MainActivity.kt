@@ -47,6 +47,11 @@ class MainActivity : Activity() {
     private var lastY=0f
     private var caption=""
     private var sticker=""
+    private var captionX=0.05f
+    private var captionY=0.90f
+    private var stickerX=0.75f
+    private var stickerY=0.15f
+    private var activeOverlay=0
     private lateinit var copies: EditText
     private lateinit var scaleDetector: ScaleGestureDetector
 
@@ -62,31 +67,46 @@ class MainActivity : Activity() {
                 return true
             }
         })
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,24,24,24) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(16,8,16,32) }
         val scroll = ScrollView(this).apply { isFillViewport = true }
-        val title = TextView(this).apply { text = "ORHAN PRINT STUDIO"; textSize = 24f; gravity = Gravity.CENTER; setPadding(0,20,0,20) }
+        val title = TextView(this).apply { text = "ORHAN PRINT STUDIO"; textSize = 24f; gravity = Gravity.CENTER; setPadding(0,8,0,12) }
         root.addView(title)
         preview = ImageView(this).apply {
             setBackgroundColor(0xffeeeeee.toInt())
             scaleType=ImageView.ScaleType.FIT_CENTER
             setOnTouchListener { _, event ->
-                if(fitting.selectedItemPosition!=2) return@setOnTouchListener false
+                if(photo==null) return@setOnTouchListener true
                 scaleDetector.onTouchEvent(event)
                 when(event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {lastX=event.x;lastY=event.y;true}
+                    MotionEvent.ACTION_DOWN -> {
+                        lastX=event.x;lastY=event.y
+                        val px=event.x/width.coerceAtLeast(1);val py=event.y/height.coerceAtLeast(1)
+                        activeOverlay=when {
+                            caption.isNotBlank() && kotlin.math.abs(px-captionX)<0.25f && kotlin.math.abs(py-captionY)<0.09f -> 1
+                            sticker.isNotBlank() && kotlin.math.abs(px-stickerX)<0.20f && kotlin.math.abs(py-stickerY)<0.09f -> 2
+                            else -> 0
+                        }
+                        true
+                    }
                     MotionEvent.ACTION_MOVE -> {
                         if(event.pointerCount==1 && !scaleDetector.isInProgress){
-                            dx+=(event.x-lastX)/width.coerceAtLeast(1)
-                            dy+=(event.y-lastY)/height.coerceAtLeast(1)
+                            val mx=(event.x-lastX)/width.coerceAtLeast(1)
+                            val my=(event.y-lastY)/height.coerceAtLeast(1)
+                            when(activeOverlay) {
+                                1 -> {captionX=(captionX+mx).coerceIn(0f,0.95f);captionY=(captionY+my).coerceIn(0.05f,1f)}
+                                2 -> {stickerX=(stickerX+mx).coerceIn(0f,0.95f);stickerY=(stickerY+my).coerceIn(0.05f,1f)}
+                                else -> {dx+=mx;dy+=my}
+                            }
                             refreshPreview()
                         }
                         lastX=event.x;lastY=event.y;true
                     }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {activeOverlay=0;true}
                     else -> true
                 }
             }
         }
-        root.addView(preview, LinearLayout.LayoutParams(-1, (resources.displayMetrics.widthPixels * 0.95f).toInt()))
+        root.addView(preview, LinearLayout.LayoutParams(-1, (resources.displayMetrics.widthPixels * 0.85f).toInt()))
         fun selector(items: List<String>): Spinner = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, items); root.addView(this) }
         paper = selector(listOf("A4", "10 x 15 cm", "A5", "A3 (PDF)", "A6", "13 x 18 cm", "15 x 21 cm", "10 x 10 cm", "Letter"))
         fitting = selector(listOf("Tamamını sığdır (kırpma yok)", "Sayfayı doldur (kırpabilir)", "Serbest yerleştir"))
@@ -100,7 +120,7 @@ class MainActivity : Activity() {
         val stickerInput=EditText(this).apply{hint="Etiket (ör. ★)";setSingleLine(true)}
         root.addView(stickerInput)
         root.addView(Button(this).apply{text="ETİKETİ EKLE";setOnClickListener{sticker=stickerInput.text.toString();refreshPreview()}})
-        root.addView(Button(this).apply{text="YERLEŞİMİ SIFIRLA";setOnClickListener{zoom=1f;dx=0f;dy=0f;refreshPreview()}})
+        root.addView(Button(this).apply{text="YERLEŞİMİ SIFIRLA";setOnClickListener{zoom=1f;dx=0f;dy=0f;captionX=0.05f;captionY=0.90f;stickerX=0.75f;stickerY=0.15f;refreshPreview()}})
         val select = Button(this).apply { text = "FOTOĞRAF SEÇ"; setOnClickListener { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type="image/*"; addCategory(Intent.CATEGORY_OPENABLE) }, pickPhoto) } }
         root.addView(select)
         root.addView(Button(this).apply { text = "HP YAZICI / WI-FI BAĞLANTISI"; setOnClickListener { startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } })
@@ -135,27 +155,27 @@ class MainActivity : Activity() {
 
     private fun drawPhoto(canvas: Canvas, width: Float, height: Float) {
         val bitmap = photo ?: return
-        val scale = if (fitting.selectedItemPosition == 0) min(width/bitmap.width, height/bitmap.height) else max(width/bitmap.width, height/bitmap.height)
-        val factor=scale*(if(fitting.selectedItemPosition==2)zoom else 1f)
+        val scale = if (fitting.selectedItemPosition != 1) min(width/bitmap.width, height/bitmap.height) else max(width/bitmap.width, height/bitmap.height)
+        val factor=scale*(zoom)
         val w=bitmap.width*factor;val h=bitmap.height*factor
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         if (mode.selectedItemPosition == 1) paint.colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
         canvas.save()
         canvas.clipRect(0f,0f,width,height)
-        val x=if(fitting.selectedItemPosition==2)dx*width else 0f
-        val y=if(fitting.selectedItemPosition==2)dy*height else 0f
+        val x=dx*width
+        val y=dy*height
         canvas.drawBitmap(bitmap,null,RectF((width-w)/2+x,(height-h)/2+y,(width+w)/2+x,(height+h)/2+y),paint)
         val tp=Paint(Paint.ANTI_ALIAS_FLAG).apply{
             color=Color.WHITE;textSize=width*0.05f;typeface=Typeface.DEFAULT_BOLD
             setShadowLayer(2f,1f,1f,Color.BLACK)
         }
-        if(caption.isNotBlank())canvas.drawText(caption.take(60),width*0.05f,height*0.90f,tp)
-        if(sticker.isNotBlank())canvas.drawText(sticker.take(12),width*0.75f,height*0.15f,tp)
+        if(caption.isNotBlank())canvas.drawText(caption.take(60),width*captionX,height*captionY,tp)
+        if(sticker.isNotBlank())canvas.drawText(sticker.take(12),width*stickerX,height*stickerY,tp)
         canvas.restore()
     }
 
     private fun refreshPreview() {
-        if (photo == null) return
+        if (photo == null || !::preview.isInitialized || !::paper.isInitialized || !::fitting.isInitialized || !::mode.isInitialized) return
         val dims = dimensions(); val w = 540; val h = (540f * dims.second / dims.first).toInt()
         val bitmap = Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap); canvas.drawColor(android.graphics.Color.WHITE); drawPhoto(canvas,w.toFloat(),h.toFloat())
